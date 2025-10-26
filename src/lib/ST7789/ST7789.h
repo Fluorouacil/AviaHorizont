@@ -23,8 +23,7 @@ typedef struct {
 } Screen;
 
 
-#define RGB565(r, g, b)                                                        \
-  ((((255 - r) & 0xF8) << 8) | (((255 - g) & 0xFC) << 3) | ((255 - b) >> 3))
+#define RGB565(r, g, b)((((255 - r) & 0xF8) << 8) | (((255 - g) & 0xFC) << 3) | ((255 - b) >> 3))
 
 #define COLOR_BLACK RGB565(0, 0, 0)
 #define COLOR_WHITE RGB565(255, 255, 255)

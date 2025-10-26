@@ -2,12 +2,16 @@
 #include "./lib/ST7789/ST7789.h"
 #include <math.h>
 #include <util/delay.h>
+#include <stdbool.h>
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846f
 #endif
 
 static float roll_angle = 0.0f;
+static bool first_draw = true;
+static int prev_x1 = 0, prev_y1 = 0;
+static int prev_x2 = 0, prev_y2 = 0;
 
 void draw_line(const ScreenPoint *sp1, const ScreenPoint *sp2, const Color *const color) {
     int16_t x0 = sp1->coordinates[0];
@@ -33,18 +37,33 @@ void fill_screen(const Color *color) {
 }
 
 void draw_horizon_line(void) {
-    const int cx = screen.width / 2;  
-    const int cy = screen.height / 2;
-    const float len = 60.0f; // фиксированная длина
+    const int cy = screen.width / 2;
+    const int cx = screen.height / 2;
+    const float len = 40.0f;
 
     int x1 = cx + (int)(len * cosf(roll_angle));
-    int y1 = cy + (int)(len * sinf(roll_angle));
+    int y1 = cy - (int)(len * sinf(roll_angle));
     int x2 = cx - (int)(len * cosf(roll_angle));
-    int y2 = cy - (int)(len * sinf(roll_angle));
+    int y2 = cy + (int)(len * sinf(roll_angle));
 
+    // Стереть предыдущую линию (если не первый кадр)
+    if (!first_draw) {
+        ScreenPoint old_p1 = {{prev_x1, prev_y1}};
+        ScreenPoint old_p2 = {{prev_x2, prev_y2}};
+        screen.draw_line(&old_p1, &old_p2, &black); // стираем чёрным
+    }
+
+    // Нарисовать новую линию
     ScreenPoint p1 = {{x1, y1}};
     ScreenPoint p2 = {{x2, y2}};
     screen.draw_line(&p1, &p2, &white);
+
+    // Сохранить текущие координаты
+    prev_x1 = x1;
+    prev_y1 = y1;
+    prev_x2 = x2;
+    prev_y2 = y2;
+    first_draw = false;
 }
 
 float calculate_roll_from_accel(float ax, float ay, float az) {
@@ -57,7 +76,7 @@ int main(void) {
     
     fill_screen(&black);
 
-    const float dt = 0.1f;
+    const float dt = 0.01f;
 
     while (1) {
         float gx, gy, gz;
@@ -87,9 +106,8 @@ int main(void) {
         if (roll_angle > M_PI) roll_angle -= 2.0f * M_PI;
         if (roll_angle < -M_PI) roll_angle += 2.0f * M_PI;
 
-        fill_screen(&black);
         draw_horizon_line();
-        _delay_ms(10);
+        _delay_ms(30);
     }
 
     return 0;
