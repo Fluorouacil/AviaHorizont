@@ -176,13 +176,6 @@ void st7789_draw_hline(uint16_t x, uint16_t y, uint16_t length,
   CS_HIGH();
 }
 
-/**
- * @brief Рисование вертикальной линии
- * @param x X координата
- * @param y Начальная Y координата
- * @param length Длина линии
- * @param color Цвет линии
- */
 void st7789_draw_vline(uint16_t x, uint16_t y, uint16_t length,
                        uint16_t color) {
   // Проверка границ
@@ -254,4 +247,24 @@ void st7789_draw_line(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1,
       y0 += sy;
     }
   }
+}
+
+void st7789_fill_rect(uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint16_t color) {
+    if (x >= DISPLAY_WIDTH || y >= DISPLAY_HEIGHT) return;
+    if (x + w > DISPLAY_WIDTH) w = DISPLAY_WIDTH - x;
+    if (y + h > DISPLAY_HEIGHT) h = DISPLAY_HEIGHT - y;
+    if (w == 0 || h == 0) return;
+
+    _st7789_set_address_window(x, y, x + w - 1, y + h - 1);
+
+    DC_HIGH();
+    CS_LOW();
+
+    uint32_t pixels = (uint32_t)w * h;
+    for (uint32_t i = 0; i < pixels; i++) {
+        _spi_write(color >> 8);
+        _spi_write(color & 0xFF);
+    }
+
+    CS_HIGH();
 }

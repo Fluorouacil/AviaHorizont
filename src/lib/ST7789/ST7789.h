@@ -5,7 +5,6 @@
 #include <stdint.h>
 #include <util/delay.h>
 
-// --- Определения общих типов ---
 typedef struct {
     uint8_t red;
     uint8_t green;
@@ -13,7 +12,7 @@ typedef struct {
 } Color;
 
 typedef struct {
-    int16_t coordinates[2]; // [x, y]
+    int16_t coordinates[2];
 } ScreenPoint;
 
 typedef struct {
@@ -43,7 +42,7 @@ typedef struct {
 #define MADCTL_RGB 0x00 // RGB порядок цветов
 #define MADCTL_BGR 0x08 // BGR порядок цветов
 #define MADCTL_MH 0x04  // Display Data Latch Order
-#define MADCTL_LANDSCAPE (MADCTL_MX)
+#define MADCTL_LANDSCAPE (MADCTL_MX | MADCTL_MV)
 
 void st7789_init(void);
 
@@ -54,10 +53,12 @@ void st7789_draw_line(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1,
 void st7789_draw_hline(uint16_t x, uint16_t y, uint16_t length, uint16_t color);
 void st7789_draw_vline(uint16_t x, uint16_t y, uint16_t length, uint16_t color);
 
-// void _st7789_write_command(uint8_t cmd);
-// void _st7789_write_data(uint8_t data);
-// void _st7789_write_data_16(uint16_t data);
-// void _st7789_set_address_window(uint16_t x0, uint16_t y0, uint16_t x1,
-//                                 uint16_t y1);
+void st7789_fill_rect(uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint16_t color);
+
+void _st7789_write_command(uint8_t cmd);
+void _st7789_write_data(uint8_t data);
+void _st7789_write_data_16(uint16_t data);
+void _st7789_set_address_window(uint16_t x0, uint16_t y0, uint16_t x1,
+                                uint16_t y1);
 
 #endif // ST7789_H
