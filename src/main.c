@@ -61,14 +61,22 @@ void draw_roll_mode(void) {
     int x2 = cx - (int)(len * cosf(roll_angle));
     int y2 = cy + (int)(len * sinf(roll_angle));
 
-    // Стереть старую линию
+    // === Оптимизированное стирание: fill_rect вместо draw_line ===
     if (!first_draw) {
-        ScreenPoint old_p1 = {{prev_x1, prev_y1}};
-        ScreenPoint old_p2 = {{prev_x2, prev_y2}};
-        screen.draw_line(&old_p1, &old_p2, &black);
+        int min_x = (prev_x1 < prev_x2) ? prev_x1 : prev_x2;
+        int max_x = (prev_x1 > prev_x2) ? prev_x1 : prev_x2;
+        int min_y = (prev_y1 < prev_y2) ? prev_y1 : prev_y2;
+        int max_y = (prev_y1 > prev_y2) ? prev_y1 : prev_y2;
+        // Добавим +1 пиксель по краям — на случай округления
+        min_x--; max_x++; min_y--; max_y++;
+        if (min_x < 0) min_x = 0;
+        if (min_y < 0) min_y = 0;
+        if (max_x >= DISPLAY_WIDTH)  max_x = DISPLAY_WIDTH - 1;
+        if (max_y >= DISPLAY_HEIGHT) max_y = DISPLAY_HEIGHT - 1;
+        st7789_fill_rect(min_x, min_y, max_x - min_x + 1, max_y - min_y + 1, RGB565(0, 0, 0));
     }
 
-    // Нарисовать новую
+    // Рисуем НОВУЮ линию — как у тебя (работает!)
     ScreenPoint p1 = {{x1, y1}};
     ScreenPoint p2 = {{x2, y2}};
     screen.draw_line(&p1, &p2, &white);
@@ -91,17 +99,17 @@ void draw_sky_ground(float pitch) {
     // Коэффициент масштабирования: 1 рад ≈ (DISPLAY_HEIGHT/2) пикселей?
     // Но лучше подобрать эмпирически, например: 1 рад = 60 px
     const float scale = 60.0f; // пикселей на радиан
-    int horizon_y = (int)((float)(DISPLAY_HEIGHT / 2) + pitch * scale);
+    int horizon_y = (int)((float)(DISPLAY_HEIGHT / 2) - pitch * scale);
 
     // Ограничиваем, чтобы не выйти за границы
     if (horizon_y < 0) horizon_y = 0;
     if (horizon_y > DISPLAY_HEIGHT) horizon_y = DISPLAY_HEIGHT;
 
     // Заливаем НЕБО (сверху до горизонта) — чёрный? синий?
-    st7789_fill_rect(0, 0, DISPLAY_WIDTH, horizon_y, RGB565(0, 0, 255)); // или COLOR_BLUE
+    st7789_fill_rect(0, 0, DISPLAY_WIDTH, horizon_y, RGB565(101, 67, 33)); // или COLOR_BLUE 
 
     // Заливаем ЗЕМЛЮ (от горизонта до низа) — коричневый/зелёный?
-    st7789_fill_rect(0, horizon_y, DISPLAY_WIDTH, DISPLAY_HEIGHT - horizon_y, RGB565(101, 67, 33)); // коричневый
+    st7789_fill_rect(0, horizon_y, DISPLAY_WIDTH, DISPLAY_HEIGHT - horizon_y, RGB565(0, 0, 255)); // коричневый
 }
 
 void draw_pitch_mode(void) {
@@ -165,8 +173,17 @@ int main(void) {
             draw_pitch_mode();
         } else {
             draw_roll_mode();
+    
+            static uint8_t counter = 0;
+            if (++counter >= 5) {
+                counter = 0;
+                // Стираем: закрашиваем прямоугольник
+                st7789_fill_rect_mirror_x(5, 5, 30, 10, RGB565(0, 0, 0));
+                int16_t roll_deg = (int16_t)roundf(roll_angle * 180.0f / M_PI);
+                st7789_draw_angle(5, 5, roll_deg, RGB565(255, 255, 0), 1);
+            }
         }
 
-        _delay_ms(30);
+        _delay_ms(35);
     }
 }

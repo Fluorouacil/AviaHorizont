@@ -4,6 +4,8 @@
 #include <avr/io.h>
 #include <stdint.h>
 #include <util/delay.h>
+#include <stdbool.h>
+#include <stdlib.h>
 
 typedef struct {
     uint8_t red;
@@ -47,18 +49,16 @@ typedef struct {
 void st7789_init(void);
 
 void st7789_fill_screen(uint16_t color);
-void st7789_draw_line(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1,
-                      uint16_t color);
+void st7789_draw_line(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1, uint16_t color);
 
 void st7789_draw_hline(uint16_t x, uint16_t y, uint16_t length, uint16_t color);
 void st7789_draw_vline(uint16_t x, uint16_t y, uint16_t length, uint16_t color);
 
 void st7789_fill_rect(uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint16_t color);
+void st7789_fill_rect_mirror_x(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t color);
 
-void _st7789_write_command(uint8_t cmd);
-void _st7789_write_data(uint8_t data);
-void _st7789_write_data_16(uint16_t data);
-void _st7789_set_address_window(uint16_t x0, uint16_t y0, uint16_t x1,
-                                uint16_t y1);
+void st7789_draw_angle(int16_t x, int16_t y, int16_t deg, uint16_t color, uint8_t size);
+void st7789_draw_number_string(int16_t x, int16_t y, const char *str, uint16_t color, uint8_t size);
+void st7789_draw_digit(int16_t x, int16_t y, char c, uint16_t color, uint8_t size);
 
 #endif // ST7789_H
