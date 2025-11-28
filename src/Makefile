@@ -13,8 +13,8 @@ endif
 # Конфигурация
 MCU = atmega328p
 F_CPU = 16000000UL
-PORT1 = COM9
-PORT2 = COM8
+PORT1 = COM4
+PORT2 = COM5
 BAUD = 115200
 BAUD_OLD = 57600
 OPT = -Os
