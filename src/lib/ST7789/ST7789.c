@@ -125,7 +125,6 @@ void st7789_init(void) {
   _st7789_write_data(0xA1);
 
   // Включение нормального режима и дисплея
-  _st7789_write_command(0x21); // INVON: инверсия цветов (опционально)
   _st7789_write_command(0x13); // NORON: нормальный режим
   _delay_ms(10);
 

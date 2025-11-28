@@ -17,7 +17,7 @@ LDFLAGS = -mmcu=$(MCU) $(OPT)
 LIBS = -lm
 
 # Sources relative to current dir (since make is run from src/)
-SOURCES = main.c lib/MPU6050/MPU6050.c lib/ST7789/ST7789.c lib/I2C/I2C.c lib/Button/Button.c
+SOURCES = main.c lib/MPU6050/MPU6050.c lib/ST7789/ST7789.c lib/I2C/I2C.c lib/Button/Button.c lib/Screen/st7789_screen.c
 OBJECTS = $(SOURCES:.c=.o)
 
 TARGET = main

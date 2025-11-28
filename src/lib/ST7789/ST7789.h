@@ -7,23 +7,6 @@
 #include <stdbool.h>
 #include <stdlib.h>
 
-typedef struct {
-    uint8_t red;
-    uint8_t green;
-    uint8_t blue;
-} Color;
-
-typedef struct {
-    int16_t coordinates[2];
-} ScreenPoint;
-
-typedef struct {
-    int width;
-    int height;
-    void (*draw_line)(const ScreenPoint *p1, const ScreenPoint *p2, const Color *color);
-} Screen;
-
-
 #define RGB565(r, g, b)((((255 - r) & 0xF8) << 8) | (((255 - g) & 0xFC) << 3) | ((255 - b) >> 3))
 
 #define COLOR_BLACK RGB565(0, 0, 0)
