@@ -1,57 +1,89 @@
-#include "./lib/MPU6050/MPU6050.h"
-#include "./lib/ST7789/ST7789.h"
-#include "./lib/Button/Button.h"
-#include <math.h>
+#include <avr/io.h>
+#include <avr/interrupt.h>   // ← ОБЯЗАТЕЛЬНО для ISR и sei()
 #include <util/delay.h>
+#include <math.h>
+#include <string.h>          // ← для strcpy, strcmp
 #include <stdbool.h>
-#include <stdio.h>
-#include <string.h>
+
+#include "./lib/ST7735S/ST7735S.h"   // ← для st7789_init, st7789_fill_screen, RGB565
 #include "./lib/Screen/screen.h"
 
-extern const Screen ST7789_SCREEN;
-static const Screen* screen = &ST7789_SCREEN;
+// Макросы MIN/MAX (часто не определены в AVR)
+#ifndef MIN
+#define MIN(a, b) ((a) < (b) ? (a) : (b))
+#endif
+#ifndef MAX
+#define MAX(a, b) ((a) > (b) ? (a) : (b))
+#endif
 
-// Глобальные цвета
+// Цвета
 static const Color WHITE = {255, 255, 255};
 static const Color BLACK = {0, 0, 0};
 static const Color SKY_BLUE = {0, 0, 255};
 static const Color EARTH_BROWN = {101, 67, 33};
 static const Color YELLOW = {255, 255, 0};
 
-#ifndef M_PI
-#define M_PI 3.14159265358979323846f
-#endif
+extern const Screen ST7735S_SCREEN;
+static const Screen* screen = &ST7735S_SCREEN;
 
-#ifndef MIN
-#define MIN(a, b) ((a) < (b) ? (a) : (b))
-#endif
+// Пакет данных
+typedef struct {
+    float roll;
+    float pitch;
+    uint8_t mode; // 0 = мы рисуем pitch, 1 = мы рисуем roll
+} AttitudePacket;
 
-#ifndef MAX
-#define MAX(a, b) ((a) > (b) ? (a) : (b))
-#endif
+// Глобальные для приёма
+volatile bool packet_ready = false;
+volatile AttitudePacket received = {0};
 
-typedef enum {
-    MODE_PITCH_ONLY,  // Только тангаж
-    MODE_ROLL_ONLY    // Только крен
-} DisplayMode;
+static uint8_t buf[11];
+static uint8_t idx = 0;
 
-static float roll_angle = 0.0f;
-static float pitch_angle = 0.0f;
-static DisplayMode current_mode = MODE_ROLL_ONLY;
-volatile bool update_ready = false;
+// Флаги для первого рисования
 static bool roll_first_draw = true;
 static bool pitch_first_draw = true;
 static int pitch_last_horizon_y = -1;
+ISR(USART_RX_vect) {
+    uint8_t c = UDR0;
 
-ISR(TIMER1_COMPA_vect) {
-    update_ready = true;
+    if (idx == 0 && c != 0xFE) {
+        // sync lost — сброс
+        idx = 0;
+        return;
+    }
+
+    buf[idx] = c;
+    idx++;
+
+    if (idx == 11) {
+        if (buf[10] == 0xFF) {
+            // Распаковка
+            union { uint8_t b[4]; float f; } roll_u, pitch_u;
+            for (int i = 0; i < 4; i++) {
+                roll_u.b[i]  = buf[1 + i];
+                pitch_u.b[i] = buf[5 + i];
+            }
+
+            // Копируем в volatile-структуру атомарно (или через cli/sei)
+            AttitudePacket temp;
+            temp.roll  = roll_u.f;
+            temp.pitch = pitch_u.f;
+            temp.mode  = buf[9];
+
+            cli();
+            received = temp;
+            packet_ready = true;
+            sei();
+        }
+        idx = 0;
+    } else if (idx > 11) {
+        idx = 0; // защита от переполнения
+    }
 }
 
-const Color white = {255, 255, 255};
-const Color black = {0, 0, 0};
-
 void fill_screen(const Color *color) {
-    st7789_fill_screen(RGB565(color->red, color->green, color->blue));
+    st7735s_fill_screen(RGB565(color->red, color->green, color->blue));
 }
 
 void draw_roll_ui(const Screen* scr) {
@@ -227,10 +259,6 @@ void draw_roll_mode(const Screen* scr, float roll_rad) {
     prev_y2 = y2;
 }
 
-float calculate_roll_from_accel(float ax, float ay, float az) {
-    return atan2f(ay, az);
-}
-
 void draw_pitch_ui_full(const Screen* scr, float pitch_rad) {
     const float scale = 60.0f;
     const int centerY = scr->height / 2;
@@ -356,64 +384,43 @@ void draw_pitch_mode(const Screen* scr, float pitch_rad) {
 }
 
 int main(void) {
-    st7789_init();
-    mpu6050_init();
-    button_init();
+    // Инициализация
+    st7735s_init();
+
+    // UART: 57600 бод, только приём
+    UBRR0H = 0;
+    UBRR0L = 16; // 16000000 / (16 * 57600) - 1 ≈ 16.35 → 34 для 57600 (точнее)
+    UCSR0A = 0;
+    UCSR0B = (1 << RXEN0) | (1 << RXCIE0); // включить приём + прерывание
+    UCSR0C = (1 << UCSZ01) | (1 << UCSZ00); // 8N1
+
+    sei(); // разрешить прерывания
 
     screen->clear(&BLACK);
 
-    const float dt = 0.01f;
-
-    TCCR1A = 0;
-    TCCR1B = (1 << WGM12) | (1 << CS11) | (1 << CS10);
-    OCR1A = 7499;
-    TIMSK1 = (1 << OCIE1A);
-    TCNT1 = 0;
-    sei();
-
-    update_ready = true;
-
     while (1) {
-        while (!update_ready) {}
-        update_ready = false;
+        if (packet_ready) {
+            cli();
+            AttitudePacket pkt = received;
+            packet_ready = false;
+            sei();
 
-        float gx, gy, gz, ax, ay, az;
-        mpu6050_read_gyro(&gx, &gy, &gz);
-        mpu6050_read_accel(&ax, &ay, &az);
-
-        // Обновление roll
-        float roll_gyro = roll_angle + (gx * (M_PI / 180.0f)) * dt;
-        float roll_accel = atan2f(ay, az);
-        float acc_mag = sqrtf(ax*ax + ay*ay + az*az);
-        float acc_error = fabsf(acc_mag - 1.0f);
-        float alpha = (acc_error < 0.05f) ? 0.90f : (acc_error < 0.15f) ? 0.95f : 0.985f;
-        roll_angle = alpha * roll_gyro + (1.0f - alpha) * roll_accel;
-        if (roll_angle > M_PI) roll_angle -= 2.0f * M_PI;
-        if (roll_angle < -M_PI) roll_angle += 2.0f * M_PI;
-
-        // Обновление pitch
-        pitch_angle = atan2f(-ax, sqrtf(ay*ay + az*az));
-
-        // Кнопка
-        if (button_pressed) {
-            button_pressed = false;
-            _delay_ms(30);
-            if ((PIND & (1 << PD2)) == 0) {
-                current_mode = (current_mode == MODE_PITCH_ONLY) 
-                               ? MODE_ROLL_ONLY 
-                               : MODE_PITCH_ONLY;
+            static uint8_t last_mode = 0xFF;
+            if (pkt.mode != last_mode) {
                 screen->clear(&BLACK);
                 roll_first_draw = true;
                 pitch_first_draw = true;
                 pitch_last_horizon_y = -1;
+                last_mode = pkt.mode;
             }
-        }
 
-        // Рендер
-        if (current_mode == MODE_PITCH_ONLY) {
-            draw_pitch_mode(screen, pitch_angle);
-        } else {
-            draw_roll_mode(screen, roll_angle);
+            if (pkt.mode == 0) {
+                // Мы — pitch-экран
+                draw_pitch_mode(screen, pkt.pitch);
+            } else {
+                // Мы — roll-экран
+                draw_roll_mode(screen, pkt.roll);
+            }
         }
     }
 }
